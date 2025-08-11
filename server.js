@@ -23,7 +23,9 @@ const razorpay = new Razorpay({
 app.set('razorpay', razorpay);
 
 // ✅ Serve uploads (profile pics, product images)
+app.use('/assets', express.static(path.join(__dirname, 'public/assets')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 
 // ✅ API Routes
 app.use('/api/auth', require('./routes/auth'));

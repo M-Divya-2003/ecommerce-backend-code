@@ -2,32 +2,49 @@ const fs = require('fs');
 const path = require('path');
 const db = require('../config/db');
 
-// ✅ Helper function to convert an image file to Base64
+// ✅ Helper: Convert file to Base64
 const getBase64Image = (filename) => {
   if (!filename) return null;
 
   try {
-    // ✅ Correct path (points to backend-ecom/public/assets)
-    const imagePath = path.join(__dirname, '../../public/assets', filename);
+    // Clean the filename from unwanted prefixes
+    let safeFilename = filename
+      .replace(/^\/+/, '')         // remove leading slashes
+      .replace(/^(\.\.\/)+/, '')   // remove ../
+      .replace(/^assets\//, '')    // remove assets/ if exists
 
-    // ✅ Check if the file exists
-    if (!fs.existsSync(imagePath)) {
-      console.warn(`⚠️ Image not found: ${imagePath}`);
+    // Potential locations for product images
+    const possiblePaths = [
+      path.join(__dirname, '../../public/assets', safeFilename) 
+    ];
+
+    // Find the first path that exists
+    let imagePath = null;
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p)) {
+        imagePath = p;
+        break;
+      }
+    }
+
+    if (!imagePath) {
+      console.warn(`⚠️ Image not found for: ${filename}`);
       return null;
     }
 
-    // ✅ Read image and convert to Base64
+    // Read file and determine MIME type
     const imageData = fs.readFileSync(imagePath);
-    const mimeType = path.extname(imagePath).toLowerCase() === '.png' ? 'image/png' : 'image/jpeg';
-    return `data:${mimeType};base64,${imageData.toString('base64')}`;
+    const ext = path.extname(imagePath).toLowerCase().replace('.', '');
+    const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
 
+    return `data:${mimeType};base64,${imageData.toString('base64')}`;
   } catch (error) {
     console.error(`❌ Error converting image: ${filename}`, error);
     return null;
   }
 };
 
-// ✅ Get ALL products and convert image to Base64
+// ✅ Get ALL products (Base64 images)
 exports.getAllProducts = (req, res) => {
   db.query('SELECT * FROM products', (err, results) => {
     if (err) {
@@ -36,7 +53,7 @@ exports.getAllProducts = (req, res) => {
     }
 
     const products = results.map(product => {
-      product.image_url = getBase64Image(product.image_url); // ✅ Convert file to Base64
+      product.image_url = getBase64Image(product.image_url);
       return product;
     });
 
@@ -44,7 +61,7 @@ exports.getAllProducts = (req, res) => {
   });
 };
 
-// ✅ Get SINGLE product by ID and convert image to Base64
+// ✅ Get SINGLE product (Base64 image)
 exports.getProductById = (req, res) => {
   const id = req.params.id;
 
@@ -58,7 +75,7 @@ exports.getProductById = (req, res) => {
     }
 
     const product = results[0];
-    product.image_url = getBase64Image(product.image_url); // ✅ Convert file to Base64
+    product.image_url = getBase64Image(product.image_url);
 
     res.json(product);
   });
