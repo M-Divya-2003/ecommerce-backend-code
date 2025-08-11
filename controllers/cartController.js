@@ -2,19 +2,12 @@ const fs = require('fs');
 const path = require('path');
 const db = require('../config/db');
 
-// ✅ Get cart items (return public image src)
+// ✅ Get cart items and convert images to Base64
 const getCart = (req, res) => {
   const userId = req.params.userId;
 
   const query = `
-    SELECT 
-      c.product_id AS id, 
-      p.name, 
-      p.description, 
-      p.price, 
-      p.stock, 
-      p.image_url, 
-      c.quantity AS qty
+    SELECT c.product_id AS id, p.name, p.description, p.price, p.stock, p.image_url, c.quantity AS qty
     FROM cart_items c
     JOIN products p ON c.product_id = p.id
     WHERE c.user_id = ?
@@ -26,14 +19,25 @@ const getCart = (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch cart' });
     }
 
+    // ✅ Convert image paths to Base64
     const updatedResults = results.map(item => {
       if (item.image_url) {
-        // Remove leading slashes
-        const safeFilename = item.image_url.replace(/^\/+/, '');
-        // Return public path for frontend
-        item.image_url = `/assets/${safeFilename}`;
-      } else {
-        item.image_url = null;
+        try {
+          // Resolve absolute image path
+          const imagePath = path.resolve(__dirname, '../../public/assets', item.image_url);
+
+          if (fs.existsSync(imagePath)) {
+            const imageData = fs.readFileSync(imagePath);
+            const ext = path.extname(imagePath).slice(1); // e.g. png, jpg
+            item.image_url = `data:image/${ext};base64,${imageData.toString('base64')}`;
+          } else {
+            console.warn(`Image not found: ${imagePath}`);
+            item.image_url = null;
+          }
+        } catch (error) {
+          console.error('Error converting image to Base64:', error);
+          item.image_url = null;
+        }
       }
       return item;
     });
@@ -42,7 +46,8 @@ const getCart = (req, res) => {
   });
 };
 
-// ✅ Add product to cart (increment if exists)
+
+// Add product to cart (increment if exists)
 const addToCart = (req, res) => {
   const { userId, productId } = req.body;
 
@@ -51,14 +56,14 @@ const addToCart = (req, res) => {
     if (err) return res.status(500).json({ error: 'Database error' });
 
     if (results.length > 0) {
-      // Increment quantity
+      // Product already in cart – increment quantity
       const updateQuery = 'UPDATE cart_items SET quantity = quantity + 1 WHERE user_id = ? AND product_id = ?';
       db.query(updateQuery, [userId, productId], (err) => {
         if (err) return res.status(500).json({ error: 'Failed to update cart' });
         res.json({ message: 'Cart updated' });
       });
     } else {
-      // Insert new
+      // Insert new product into cart
       const insertQuery = 'INSERT INTO cart_items (user_id, product_id, quantity) VALUES (?, ?, 1)';
       db.query(insertQuery, [userId, productId], (err) => {
         if (err) return res.status(500).json({ error: 'Failed to add to cart' });
@@ -68,7 +73,7 @@ const addToCart = (req, res) => {
   });
 };
 
-// ✅ Remove product from cart (decrement or delete)
+// Remove product from cart (decrement or remove)
 const removeFromCart = (req, res) => {
   const { userId, productId } = req.body;
 

@@ -2,47 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const db = require("../config/db");
 
-// ✅ Helper: Convert image path from DB to Base64
-const getBase64Image = (filename) => {
-  if (!filename) return null;
-
-  try {
-    // Clean path: remove unwanted prefixes
-    let safeFilename = filename
-      .replace(/^\/+/, '')         // remove starting slashes
-      .replace(/^(\.\.\/)+/, '')   // remove ../
-      .replace(/^assets\//, '')    // remove assets/ prefix
-
-    // Possible storage locations
-    const possiblePaths = [
-      path.join(__dirname, '../../public/assets', safeFilename)
-    ];
-
-    let imagePath = null;
-    for (const p of possiblePaths) {
-      if (fs.existsSync(p)) {
-        imagePath = p;
-        break;
-      }
-    }
-
-    if (!imagePath) {
-      console.warn(`⚠️ Wishlist image not found for: ${filename}`);
-      return null;
-    }
-
-    const imgData = fs.readFileSync(imagePath);
-    const ext = path.extname(imagePath).slice(1).toLowerCase();
-    const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
-
-    return `data:${mimeType};base64,${imgData.toString('base64')}`;
-  } catch (error) {
-    console.error(`❌ Error converting wishlist image: ${filename}`, error);
-    return null;
-  }
-};
-
-// ✅ Add to wishlist
+// Add to wishlist
 exports.addToWishlist = (req, res) => {
   const { userId, productId } = req.body;
   const checkQuery = "SELECT * FROM wishlist WHERE user_id = ? AND product_id = ?";
@@ -58,7 +18,7 @@ exports.addToWishlist = (req, res) => {
       return res.status(200).json({ message: "Already in wishlist" });
     }
 
-    db.query(insertQuery, [userId, productId], (err2) => {
+    db.query(insertQuery, [userId, productId], (err2, result) => {
       if (err2) {
         console.error("Insert wishlist error:", err2);
         return res.status(500).json({ error: "Insert failed" });
@@ -69,7 +29,8 @@ exports.addToWishlist = (req, res) => {
   });
 };
 
-// ✅ Get wishlist by user ID (with product details & Base64 images)
+// Get wishlist by user ID
+// Get wishlist by user ID with product details
 exports.getWishlistByUser = (req, res) => {
   const { userId } = req.params;
 
@@ -86,8 +47,26 @@ exports.getWishlistByUser = (req, res) => {
       return res.status(500).json({ error: "Failed to fetch wishlist" });
     }
 
+    // ✅ Convert each product image to Base64
     const updatedResults = results.map(item => {
-      item.image = getBase64Image(item.image);
+      if (item.image) {
+        try {
+          // Get absolute path of image
+          const imagePath = path.resolve(__dirname, '../../public/assets', item.image);
+
+          if (fs.existsSync(imagePath)) {
+            const imgData = fs.readFileSync(imagePath);
+            const ext = path.extname(imagePath).slice(1); // e.g. "jpg", "png"
+            item.image = `data:image/${ext};base64,${imgData.toString('base64')}`;
+          } else {
+            console.warn(`⚠️ Image not found: ${imagePath}`);
+            item.image = null;
+          }
+        } catch (error) {
+          console.error('Error converting wishlist image to Base64:', error);
+          item.image = null;
+        }
+      }
       return item;
     });
 
@@ -95,9 +74,9 @@ exports.getWishlistByUser = (req, res) => {
   });
 };
 
-// ✅ Remove from wishlist
 exports.removeFromWishlist = (req, res) => {
   const { userId, productId } = req.params;
+
   const query = "DELETE FROM wishlist WHERE user_id = ? AND product_id = ?";
 
   db.query(query, [userId, productId], (err, result) => {

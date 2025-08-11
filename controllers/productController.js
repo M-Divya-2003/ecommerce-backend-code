@@ -7,28 +7,14 @@ const getBase64Image = (filename) => {
   if (!filename) return null;
 
   try {
-    // Clean the filename from unwanted prefixes
-    let safeFilename = filename
-      .replace(/^\/+/, '')         // remove leading slashes
-      .replace(/^(\.\.\/)+/, '')   // remove ../
-      .replace(/^assets\//, '')    // remove assets/ if exists
+    // Remove any leading slashes from DB path
+    const safeFilename = filename.replace(/^\/+/, '');
 
-    // Potential locations for product images
-    const possiblePaths = [
-      path.join(__dirname, '../../public/assets', safeFilename) 
-    ];
+    // Absolute path to public/assets
+    const imagePath = path.join(__dirname, '../../public/assets', safeFilename);
 
-    // Find the first path that exists
-    let imagePath = null;
-    for (const p of possiblePaths) {
-      if (fs.existsSync(p)) {
-        imagePath = p;
-        break;
-      }
-    }
-
-    if (!imagePath) {
-      console.warn(`⚠️ Image not found for: ${filename}`);
+    if (!fs.existsSync(imagePath)) {
+      console.warn(`⚠️ Image not found: ${imagePath}`);
       return null;
     }
 
@@ -37,6 +23,7 @@ const getBase64Image = (filename) => {
     const ext = path.extname(imagePath).toLowerCase().replace('.', '');
     const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
 
+    // Return Base64 data URI
     return `data:${mimeType};base64,${imageData.toString('base64')}`;
   } catch (error) {
     console.error(`❌ Error converting image: ${filename}`, error);
