@@ -3,15 +3,14 @@ const path = require('path');
 const db = require('../config/db');
 
 // ✅ Helper: Convert file to Base64
+// ✅ Helper: Convert file to Base64
 const getBase64Image = (imageUrl) => {
-  if (!imageUrl) return null;
-
   try {
     // Ensure filename is safe
     const safeFilename = path.basename(imageUrl);
 
     // Absolute path to public/assets
-    const imagePath = path.join(__dirname, '..', '..', 'public', 'assets', safeFilename);
+    const imagePath = path.join(__dirname, '..', 'assets', safeFilename);
 
     if (!fs.existsSync(imagePath)) {
       console.warn(`⚠️ Image not found: ${imagePath}`);
